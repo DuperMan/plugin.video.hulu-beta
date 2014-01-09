@@ -3,6 +3,7 @@
 import xbmcplugin
 import xbmc
 import xbmcgui
+import xbmcvfs
 import os.path
 import sys
 import urllib
@@ -11,6 +12,7 @@ import shutil
 import md5
 import base64
 import resources.lib.common as common
+import time
 
 from BeautifulSoup import BeautifulStoneSoup
 from BeautifulSoup import BeautifulSoup , Tag, NavigableString
@@ -46,23 +48,22 @@ class Main:
             self.CreateDirectory(TV_SHOWS_PATH) 
         else:
             return
-
-        if common.args.mode.startswith('Clear'):
-            dialog = xbmcgui.Dialog()
-            if dialog.yesno('Clear Exported Items', 'Are you sure you want to delete all exported items?'):
-                shutil.rmtree(MOVIE_PATH)
-                shutil.rmtree(TV_SHOWS_PATH)
-            return
         
         if common.args.mode.startswith('Force'):
             self.EnableNotifications = True
         else:
             self.EnableNotifications = False
 
+
+        if common.args.mode.endswith('ClearLibrary'):
+            self.CleanExpired()
+            return  
+
         if common.args.mode.endswith('QueueLibrary'):
             self.GetQueue()
         elif common.args.mode.endswith('SubscriptionsLibrary'):
             self.GetSubscriptions()
+            self.CleanExpired()
         elif common.args.mode.endswith('PopularMoviesLibrary'):
             self.GetPopMovies()
         elif common.args.mode.endswith('PopularShowsLibrary'):
@@ -76,7 +77,32 @@ class Main:
             
         if (common.settings['updatelibrary'] == 'true'):
             self.UpdateLibrary()
-
+            
+    def CleanExpired(self):
+        #delete files more than an hour old
+        self.Notification('Hulu Library','Removing Expired Content')
+        
+        #delete old tv show files
+        dir = xbmc.makeLegalFilename(TV_SHOWS_PATH)
+        dirs, trash = xbmcvfs.listdir(dir)
+        for show in dirs:
+            show = xbmc.makeLegalFilename(os.path.join(dir, show))
+            trash, files = xbmcvfs.listdir(show)
+            for file in files:
+                path = xbmc.makeLegalFilename(os.path.join(show,file))
+                if (sys.platform == 'win32'): path = path.replace('smb:','')
+                if (time.mktime(time.strptime(time.ctime(os.path.getmtime(path)))) < (time.mktime(time.localtime()) - 3600)): xbmcvfs.delete(path)
+        
+        #delete old movie files
+        dir = xbmc.makeLegalFilename(MOVIE_PATH)
+        trash, movies = xbmcvfs.listdir(dir)
+        for movie in movies:
+            path = xbmc.makeLegalFilename(os.path.join(dir, movie))
+            if (sys.platform == 'win32'): path = path.replace('smb:','')
+            if time.mktime(time.strptime(time.ctime(os.path.getmtime(path)))) < (time.mktime(time.localtime()) - 3600): xbmcvfs.delete(path)
+            xbmc.log(path)
+            
+        self.Notification('Hulu Library','Expired Content Removed')
     def UpdateLibrary(self):
         xbmc.executebuiltin("UpdateLibrary(video)")
 
@@ -85,15 +111,15 @@ class Main:
             xbmc.executebuiltin('XBMC.Notification("%s", "%s", %s)' % ( heading, message, duration) )
             
     def SaveFile(self, filename, data, dir):
-        path = os.path.join(dir, filename)
-        file = open(path,'w')
+        path = xbmc.makeLegalFilename(os.path.join(dir, filename))
+        file = xbmcvfs.File(path,'w')
         file.write(data)
         file.close()
 
     def CreateDirectory(self, dir_path):
         dir_path = dir_path.strip()
         if not os.path.exists(dir_path):
-            os.makedirs(dir_path)
+            xbmcvfs.mkdirs(dir_path)
     
     def cleanfilename(self, name):    
         valid_chars = "-_.() %s%s" % (string.ascii_letters, string.digits)
@@ -145,13 +171,23 @@ class Main:
             self.ExportVideo(item)
 
     def ExportShowList(self,url,delay=0):  
-        xml=common.getFEED(url)
-        tree = ElementTree.XML(xml)
-        items = tree.findall('item')        
-        del tree
-        for item in items:
-            self.ExportShowMovie(item)
-            xbmc.sleep(delay)
+        xml_limit = 1
+        sub_page = 1
+        while xml_limit:
+            xml=common.getFEED(url)
+            tree = ElementTree.XML(xml)
+            items = tree.findall('item')
+            count = tree.find('count')
+            print "Subscription page now "+str(sub_page)
+            if int( count.findtext('') ) == 128:
+                sub_page += 1
+                url += '&page='+str(sub_page)
+            else:
+                xml_limit = 0
+            del tree
+            for item in items:
+                self.ExportShowMovie(item)
+                xbmc.sleep(delay)
             
     def ExportShowMovie(self, item):
         feature_films_count = item.find('data').findtext('feature_films_count').strip()
@@ -204,6 +240,12 @@ class Main:
             strm += '&videoid="'+urllib.quote_plus(video_id)+'"'
             strm += '&eid="'+urllib.quote_plus(eid)+'"'
             media_type = data.findtext('media_type')
+            expiredcheck = data.findtext('expires_at')
+            if expiredcheck:
+                if time.mktime(time.strptime(expiredcheck,'%Y-%m-%d %H:%M:%S')) < time.time():
+                    media_type = 'Expired'
+                    title = data.findtext('title').encode('utf-8').strip()
+                    xbmc.log('skipping expired episode %s' % title)
             if media_type == 'TV' or media_type == 'Web Original':
                 title = data.findtext('title').encode('utf-8').strip()
                 season = data.findtext('season_number').encode('utf-8')
@@ -211,6 +253,7 @@ class Main:
                 show_name = data.findtext('show_name').encode('utf-8').strip()
                 filename = self.cleanfilename('S%sE%s - %s' % (season,episode,title))
                 directory = os.path.join(TV_SHOWS_PATH,self.cleanfilename(show_name))
+                directory = xbmc.makeLegalFilename(directory)
                 self.CreateDirectory(directory)
                 self.SaveFile( filename+'.strm', strm, directory)
                 if common.settings['episodenfo'] == 'true':
@@ -240,6 +283,8 @@ class Main:
                     hasSubtitles = data.findtext('has_captions')
                     language = data.findtext('language', default="").upper()
                     durationseconds = data.findtext('duration')
+                    runtime = str(int(float(durationseconds))/60)
+                    episodeDetails += '<runtime>'+runtime+'</runtime>'
                     episodeDetails += self.streamDetails(durationseconds, ishd, language, hasSubtitles)
                     episodeDetails += '</episodedetails>'
                     self.SaveFile( filename+'.nfo', episodeDetails, directory)
@@ -275,6 +320,8 @@ class Main:
                     hasSubtitles = data.findtext('has_captions')
                     language = data.findtext('language', default="").upper()
                     durationseconds = data.findtext('duration')
+                    runtime = str(int(float(durationseconds))/60)
+                    movie += '<runtime>'+runtime+'</runtime>'
                     movie += self.streamDetails(durationseconds, ishd, language, hasSubtitles)
                     movie += '</movie>'
                     self.SaveFile(filename+'.nfo', movie, directory)
