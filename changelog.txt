@@ -200,3 +200,13 @@ NickJr
 [B]Version 3.4.9[/B]
 
 - updated xbmc.python
+
+[B]Version 3.4.9.7[/B]
+
+- added check for expired content when exporting
+
+- changed function of clear library directory to removing expired content
+
+- added support for more than 128 subscriptions (real issue is server side)
+
+- added runtime tags in exported nfo files for use with pseudotv
