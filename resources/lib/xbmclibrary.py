@@ -179,7 +179,7 @@ class Main:
             items = tree.findall('item')
             count = tree.find('count')
             print "Subscription page now "+str(sub_page)
-            if int( count.findtext('') ) == 128:
+            if count.text == '128':
                 sub_page += 1
                 url += '&page='+str(sub_page)
             else:
@@ -242,10 +242,16 @@ class Main:
             media_type = data.findtext('media_type')
             expiredcheck = data.findtext('expires_at')
             if expiredcheck:
-                if time.mktime(time.strptime(expiredcheck,'%Y-%m-%d %H:%M:%S')) < time.time():
-                    media_type = 'Expired'
-                    title = data.findtext('title').encode('utf-8').strip()
-                    xbmc.log('skipping expired episode %s' % title)
+                try:
+                    if time.mktime(time.strptime(expiredcheck,'%Y-%m-%dT%H:%M:%SZ')) < time.time():
+                        media_type = 'Expired'
+                        title = data.findtext('title').encode('utf-8').strip()
+                        xbmc.log('skipping expired episode %s' % title)
+                except:
+                    if time.mktime(time.strptime(expiredcheck,'%Y-%m-%d %H:%M:%S')) < time.time():
+                        media_type = 'Expired'
+                        title = data.findtext('title').encode('utf-8').strip()
+                        xbmc.log('skipping expired episode %s' % title)
             if media_type == 'TV' or media_type == 'Web Original':
                 title = data.findtext('title').encode('utf-8').strip()
                 season = data.findtext('season_number').encode('utf-8')
