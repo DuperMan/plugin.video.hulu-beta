@@ -240,7 +240,11 @@ class Main:
             strm += '&videoid="'+urllib.quote_plus(video_id)+'"'
             strm += '&eid="'+urllib.quote_plus(eid)+'"'
             media_type = data.findtext('media_type')
-            expiredcheck = data.findtext('expires_at')
+            expiredcheck=''
+            if package_id == 1:
+                expiredcheck = data.findtext('expires_at') #plus is disabled
+            if package_id == 2:
+                expiredcheck = data.findtext('plus_web_expires_at') #plus is enabled            
             if expiredcheck:
                 try:
                     if time.mktime(time.strptime(expiredcheck,'%Y-%m-%dT%H:%M:%SZ')) < time.time():
