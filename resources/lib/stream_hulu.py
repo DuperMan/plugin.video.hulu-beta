@@ -277,6 +277,14 @@ class Main:
         if smilSoup:
             finalUrl = self.selectStream(smilSoup)
             displayname, infoLabels, segments = self.getMeta(smilSoup)
+
+
+            #debug testing
+            finalUrl = urllib.unquote(finalUrl).decode('utf8')
+            print "finalurl -- > " + finalUrl
+            #/debug testing
+
+
             item = xbmcgui.ListItem(displayname,path=finalUrl)
             item.setInfo( type="Video", infoLabels=infoLabels)
             if self.queue:
@@ -378,10 +386,15 @@ class Main:
                 appName += '?sessionid=sessionId&' + token
                 stream = stream[0:len(stream)-4]
                 finalUrl = server + "?sessionid=sessionId&" + token + " app=" + appName
-                
+
             elif "akamai" in cdn:
                 appName += '?sessionid=sessionId&' + token
                 finalUrl = server + "?sessionid=sessionId&" + token + " app=" + appName
+
+            elif "edgecast" in cdn:
+                server=server.replace('.com','.com:80')
+                appName += '?' + token
+                finalUrl = server + "?" + token + " app=" + appName
                 
             else:
                 xbmcgui.Dialog().ok('Unsupported Content Delivery Network',cdn+' is unsupported at this time')
@@ -396,6 +409,7 @@ class Main:
             finalUrl += " playpath=" + stream + " swfurl=" + SWFPlayer + " pageurl=" + SWFPlayer + " swfvfy=true"
             #if (common.settings['swfverify'] == 'true'):
             #    finalUrl += " swfvfy=true"
+            
             return finalUrl
 
                            
