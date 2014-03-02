@@ -17,7 +17,7 @@ class RealDebrid:
             cj = cookielib.LWPCookieJar()
             cj.load(self.cookie_file)
             req = urllib2.Request(url)
-            req.add_header('User-Agent', 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3')   
+            req.add_header('User-Agent', 'XBMC Plugin')   
             opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
             response = opener.open(req)
 
@@ -38,24 +38,25 @@ class RealDebrid:
     def Resolve(self, url, quality):
         print 'notice here:'+url
         print 'DebridRoutines - Resolving url: %s' % url
-        url = 'http://www.real-debrid.com/ajax/unrestrict.php?link=' + url
+        url = 'https://real-debrid.com/ajax/unrestrict.php?link=' + url
         source = self.GetURL(url)
         print 'DebridRoutines - Returned Source: %s' % source
         link = re.search('"'+quality+'","(.+?)"', source).group(1)
         return link
+        
 
 
     def valid_host(self, host):
-        url = 'http://real-debrid.com/lib/api/hosters.php'
+        url = 'https://real-debrid.com/api/hosters.php'
         allhosts = self.GetURL(url)
-        if host in allhosts:
+        if re.search(host, allhosts):
             return True
         else:
             return False
 
 
     def  checkLogin(self):
-        url = 'http://real-debrid.com/lib/api/account.php'
+        url = 'https://real-debrid.com/api/account.php'
         source = self.GetURL(url)
         if source is not None and re.search('expiration', source):
             return False
@@ -69,7 +70,7 @@ class RealDebrid:
             login_data = urllib.urlencode({'user' : self.username, 'pass' : self.password})
             url = 'https://real-debrid.com/ajax/login.php?' + login_data
             req = urllib2.Request(url)
-            req.add_header('User-Agent', 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3')
+            req.add_header('User-Agent', 'XBMC Plugin')
             cj = cookielib.LWPCookieJar()
             opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
 
